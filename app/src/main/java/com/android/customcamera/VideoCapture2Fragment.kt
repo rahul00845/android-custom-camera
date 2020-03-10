@@ -1,18 +1,14 @@
-package com.kreditbee.android.camera
+package com.android.customcamera
 
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Matrix
-import android.graphics.Point
 import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
 import android.media.MediaRecorder
 import android.os.*
-import android.text.Spannable
-import android.text.SpannableString
-import android.text.style.StyleSpan
 import android.util.Log
 import android.util.Size
 import android.util.SparseIntArray
@@ -20,10 +16,7 @@ import android.view.*
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.fragment.app.Fragment
-import com.android.customcamera.CompareSizesByArea
-import com.android.customcamera.R
 import kotlinx.android.synthetic.main.fragment_capture2.*
-import kotlinx.android.synthetic.main.fragment_capture2.view.*
 import java.io.File
 import java.io.IOException
 import java.util.*
@@ -37,10 +30,6 @@ import kotlin.math.abs
 
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
 class VideoCapture2Fragment : Fragment() {
-
-    private val MAX_PREVIEW_WIDTH = 1920
-
-    private val MAX_PREVIEW_HEIGHT = 1080
 
     private var mCameraDevice: CameraDevice? = null
 
@@ -68,6 +57,7 @@ class VideoCapture2Fragment : Fragment() {
     private var sensorOrientation = 0
     private var videoWidth = 0
     private var videoHeight = 0
+    private var cameraFront = false
 
 
     override fun onCreateView(
@@ -80,13 +70,33 @@ class VideoCapture2Fragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
+        startCapturing.setOnClickListener {
+            if(mIsRecordingVideo) {
+                changeCameraFacing.visibility = View.VISIBLE
+                startCapturing.setImageResource(R.drawable.ic_circle)
+                stopRecordingVideo()
+                startPreview()
+            } else {
+                changeCameraFacing.visibility = View.GONE
+                startCapturing.setImageResource(R.drawable.ic_stop_circle)
+                startRecordingVideo()
+            }
+        }
+        changeCameraFacing.setOnClickListener {
+            closeCamera()
+            cameraFront = !cameraFront
+            if(cameraFront) {
+                initiateCameraPreview(CameraMetadata.LENS_FACING_FRONT)
+            } else {
+                initiateCameraPreview(CameraMetadata.LENS_FACING_BACK)
+            }
+        }
     }
 
-    private fun initiateCameraPreview() {
+    private fun initiateCameraPreview(cameraFacing: Int) {
         startBackgroundThread()
         if (texture.isAvailable) {
-            openCamera(texture.width, texture.height)
+            openCamera(texture.width, texture.height, cameraFacing)
         } else {
             texture.surfaceTextureListener = mSurfaceTextureListener
         }
@@ -98,7 +108,7 @@ class VideoCapture2Fragment : Fragment() {
             videoHeight = parentVieww.height
             videoWidth = parentVieww.width
         }
-        initiateCameraPreview()
+        initiateCameraPreview(CameraMetadata.LENS_FACING_BACK)
     }
 
 
@@ -106,9 +116,9 @@ class VideoCapture2Fragment : Fragment() {
         stopRecordingVideo()
         closeCamera()
         stopBackgroundThread()
-        if (!isRecordingDone) {
+        /*if (!isRecordingDone) {
             deleteFile()
-        }
+        }*/
         super.onPause()
     }
 
@@ -118,7 +128,7 @@ class VideoCapture2Fragment : Fragment() {
                 surfaceTexture: SurfaceTexture,
                 width: Int, height: Int
         ) {
-            openCamera(width, height)
+            openCamera(width, height, CameraMetadata.LENS_FACING_BACK)
         }
 
         override fun onSurfaceTextureSizeChanged(
@@ -205,7 +215,7 @@ class VideoCapture2Fragment : Fragment() {
     }
 
     @SuppressLint("MissingPermission")
-    private fun openCamera(width: Int, height: Int) {
+    private fun openCamera(width: Int, height: Int, cameraFacing: Int) {
         val manager = texture.context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         try {
             Log.d(TAG, "tryAcquire")
@@ -220,7 +230,7 @@ class VideoCapture2Fragment : Fragment() {
 
             for (camera in manager.cameraIdList) {
                 val cam = manager.getCameraCharacteristics(camera)
-                if (cam[CameraCharacteristics.LENS_FACING] == CameraMetadata.LENS_FACING_BACK) {
+                if (cam[CameraCharacteristics.LENS_FACING] == cameraFacing) {
                     cameraId = camera
                     break
                 }
@@ -366,10 +376,9 @@ class VideoCapture2Fragment : Fragment() {
             it.setAudioSource(MediaRecorder.AudioSource.MIC)
             it.setVideoSource(MediaRecorder.VideoSource.SURFACE)
             it.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            deleteFile()
             mNextVideoAbsolutePath = getVideoFilePath(texture.context)
             it.setOutputFile(mNextVideoAbsolutePath)
-            it.setVideoEncodingBitRate(25000000)
+            it.setVideoEncodingBitRate(3000000)
             it.setVideoFrameRate(30)
             it.setVideoSize(mPreviewSize!!.width, mPreviewSize!!.height)
             it.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
@@ -401,7 +410,7 @@ class VideoCapture2Fragment : Fragment() {
     }
 
     private fun getVideoFilePath(context: Context): String {
-        val dir = context.getExternalFilesDir(null)
+        val dir = context.getExternalFilesDir(null);
         return ((if (dir == null) "" else dir.absolutePath + "/")
                 +  System.currentTimeMillis() + ".mp4")
     }

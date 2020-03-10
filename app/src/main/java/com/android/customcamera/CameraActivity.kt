@@ -4,7 +4,6 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.fragment.app.Fragment
-import com.kreditbee.android.camera.VideoCapture2Fragment
 
 class CameraActivity : BaseActivity() {
 
@@ -19,7 +18,9 @@ class CameraActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera)
-        navigateToFragment(VideoCapture2Fragment(), null)
+        requestAppPermissions(
+            permissionArray, CAMERA_STORAGE_PERMISION_REQ_CODE, this::onPermissionResult
+        )
     }
 
     fun navigateToFragment(fragment: Fragment, arguments: Bundle?): Boolean {
@@ -41,10 +42,7 @@ class CameraActivity : BaseActivity() {
         if (permissionStatus) {
             Log.d("PermissionStatus", "true")
             if (
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
-                        /*&& (Build.MODEL.toLowerCase().contains("comio x1")
-                        || Build.MODEL.toLowerCase().contains("nexus")
-                        || Build.MODEL.toLowerCase().contains("lg"))*/) {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 navigateToFragment(VideoCapture2Fragment(), null)
             } else {
                 navigateToFragment(VideoCapture1Fragment(), null)
@@ -59,8 +57,5 @@ class CameraActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
-        /*requestAppPermissions(
-            permissionArray, CAMERA_STORAGE_PERMISION_REQ_CODE, this::onPermissionResult
-        )*/
     }
 }

@@ -5,10 +5,6 @@ import android.media.CamcorderProfile
 import android.media.MediaRecorder
 import android.os.AsyncTask
 import android.os.Bundle
-import android.os.CountDownTimer
-import android.text.Spannable
-import android.text.SpannableString
-import android.text.style.StyleSpan
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -16,7 +12,6 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import kotlinx.android.synthetic.main.fragment_capture1.*
 import java.io.File
-import java.util.*
 
 
 /**
@@ -36,12 +31,13 @@ class VideoCapture1Fragment : Fragment() {
     private var cameraPreview: CameraPreview? = null
 
     private var isRecordingDone = false
+    private var cameraFront = false
 
 
     override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
     ): View? {
         layoutView = inflater.inflate(R.layout.fragment_capture1, container, false)
         return layoutView
@@ -49,16 +45,39 @@ class VideoCapture1Fragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
+        startCapturing.setOnClickListener {
+            if (isRecording) {
+                changeCameraFacing.visibility = View.VISIBLE
+                startCapturing.setImageResource(R.drawable.ic_circle)
+                stopRecordingVideo()
+            } else {
+                changeCameraFacing.visibility = View.GONE
+                startCapturing.setImageResource(R.drawable.ic_stop_circle)
+                if(cameraFront) {
+                    startRecordingVideo(Camera.CameraInfo.CAMERA_FACING_FRONT)
+                } else {
+                    startRecordingVideo(Camera.CameraInfo.CAMERA_FACING_BACK)
+                }
+            }
+        }
+        changeCameraFacing.setOnClickListener {
+            releaseCamera()
+            cameraFront = !cameraFront
+            if(cameraFront) {
+                openCamera(Camera.CameraInfo.CAMERA_FACING_FRONT)
+            } else {
+                openCamera(Camera.CameraInfo.CAMERA_FACING_BACK)
+            }
+        }
     }
 
-    private fun getDefaultCameraInstance(): Camera {
-        return Camera.open(Camera.CameraInfo.CAMERA_FACING_FRONT)
+    private fun getDefaultCameraInstance(cameraFacing: Int): Camera {
+        return Camera.open(cameraFacing)
     }
 
-    private fun startRecordingVideo() {
+    private fun startRecordingVideo(camerFacing: Int) {
         if (!isRecording)
-            MediaPrepareTask().execute(null, null, null)
+            MediaPrepareTask().execute(camerFacing, null, null)
     }
 
     private fun stopRecordingVideo() {
@@ -67,28 +86,27 @@ class VideoCapture1Fragment : Fragment() {
                 mMediaRecorder?.stop()
             } catch (e: RuntimeException) {
                 Log.e(
-                        TAG,
-                        "RuntimeException: stop() is called immediately after start()"
+                    TAG,
+                    "RuntimeException: stop() is called immediately after start()"
                 )
-                mOutputFile?.delete()
             }
             releaseMediaRecorder()
             isRecording = false
         }
-        releaseCamera()
     }
 
     override fun onResume() {
         super.onResume()
-        openCamera()
+        openCamera(Camera.CameraInfo.CAMERA_FACING_BACK)
     }
 
     override fun onPause() {
         super.onPause()
         stopRecordingVideo()
-        if (!isRecordingDone) {
+        /*if (!isRecordingDone) {
             deleteFile()
-        }
+        }*/
+        releaseCamera()
     }
 
     private fun releaseMediaRecorder() {
@@ -110,14 +128,14 @@ class VideoCapture1Fragment : Fragment() {
         }
     }
 
-    private fun openCamera() {
-        mCamera = getDefaultCameraInstance()
+    private fun openCamera(camerFacing: Int) {
+        mCamera = getDefaultCameraInstance(camerFacing)
         mCamera?.setDisplayOrientation(90)
         cameraPreview = CameraPreview(layoutView.context, mCamera!!)
         texture.addView(cameraPreview)
     }
 
-    private fun prepareVideoRecorder(): Boolean {
+    private fun prepareVideoRecorder(camerFacing: Int): Boolean {
         mMediaRecorder = MediaRecorder()
 
         try {
@@ -129,16 +147,16 @@ class VideoCapture1Fragment : Fragment() {
                     setVideoSource(MediaRecorder.VideoSource.CAMERA)
                     try {
                         setProfile(
-                                CamcorderProfile.get(
-                                        Camera.CameraInfo.CAMERA_FACING_FRONT,
-                                        CamcorderProfile.QUALITY_480P
-                                )
+                            CamcorderProfile.get(
+                                camerFacing,
+                                CamcorderProfile.QUALITY_1080P
+                            )
                         )
                     } catch (e: Exception) {
+                        e.printStackTrace()
                         setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_480P))
                     }
 
-                    deleteFile()
                     mOutputFile = getOutputFile()
                     setOutputFile(mOutputFile!!.path)
                     setPreviewDisplay(cameraPreview?.holder?.surface)
@@ -173,11 +191,11 @@ class VideoCapture1Fragment : Fragment() {
         return File(path)
     }
 
-    internal inner class MediaPrepareTask : AsyncTask<Void, Void, Boolean>() {
+    internal inner class MediaPrepareTask : AsyncTask<Int, Void, Boolean>() {
 
-        override fun doInBackground(vararg voids: Void): Boolean? {
+        override fun doInBackground(vararg camerFacing: Int?): Boolean? {
             try {
-                if (prepareVideoRecorder()) {
+                if (prepareVideoRecorder(camerFacing[0]!!)) {
                     mMediaRecorder?.start()
 
                     isRecording = true
